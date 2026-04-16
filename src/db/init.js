@@ -147,6 +147,20 @@ export const initializeDatabase = async () => {
       END
       $$;
     `);
+
+    // Ensure password_hash column exists (for delivery partner self-registration)
+    await query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'delivery_partners' AND column_name = 'password_hash'
+        ) THEN
+          ALTER TABLE delivery_partners ADD COLUMN password_hash VARCHAR(255);
+        END IF;
+      END
+      $$;
+    `);
     logger.info('✓ Delivery Partners table ready');
 
     // Menu Items Table

@@ -12,6 +12,16 @@ const phoneSchema = Joi.string()
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
+export const validateDeliveryRegister = Joi.object({
+  name: Joi.string().min(2).max(100).required(),
+  mobileNumber: phoneSchema,
+  password: Joi.string().min(6).max(128).required()
+    .messages({ 'string.min': 'Password must be at least 6 characters' }),
+  email: Joi.string().email().optional().allow('', null),
+  vehicleType: Joi.string().valid('bike', 'scooter', 'car', 'truck').required(),
+  vehicleNumber: Joi.string().min(3).max(20).required()
+});
+
 export const validateDeliverySendOtp = Joi.object({
   mobileNumber: phoneSchema
 });

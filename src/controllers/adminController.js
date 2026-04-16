@@ -791,6 +791,52 @@ export const getRevenueReport = async (req, res) => {
 // ==================== DELIVERY PARTNERS MANAGEMENT ====================
 
 /**
+ * Get Pending Delivery Partners
+ */
+export const getPendingDeliveryPartners = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const result = await pool.query(
+      `SELECT id, name, mobile_number as mobile, email,
+              vehicle_type || ' (' || COALESCE(vehicle_number, '') || ')' AS vehicle,
+              rating, total_deliveries, status, is_available,
+              COALESCE(approval_status, 'pending') AS approval_status,
+              created_at
+       FROM delivery_partners
+       WHERE COALESCE(approval_status, 'pending') = 'pending'
+       ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM delivery_partners
+       WHERE COALESCE(approval_status, 'pending') = 'pending'`
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        total: parseInt(countResult.rows[0].total),
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching pending delivery partners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending delivery partners',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Get All Delivery Partners
  */
 export const getAllDeliveryPartners = async (req, res) => {

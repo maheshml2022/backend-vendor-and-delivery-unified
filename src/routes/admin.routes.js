@@ -44,6 +44,7 @@ router.get('/reports/revenue', adminController.getRevenueReport);
 // ==================== DELIVERY PARTNERS ====================
 
 router.get('/delivery-partners', adminController.getAllDeliveryPartners);
+router.get('/delivery-partners/pending', adminController.getPendingDeliveryPartners);
 router.get('/delivery-partners/available', adminController.getAvailableDeliveryPartners);
 router.post('/delivery-partners', adminController.createDeliveryPartner);
 router.get('/delivery-partners/:id', adminController.getDeliveryPartnerById);
@@ -52,6 +53,8 @@ router.patch('/delivery-partners/:id/status', adminController.toggleDeliveryPart
 router.patch('/delivery-partners/:id/availability', adminController.toggleAvailability);
 router.post('/delivery-partners/:id/approve', adminController.approveDeliveryPartner);
 router.post('/delivery-partners/:id/reject', adminController.rejectDeliveryPartner);
+router.patch('/delivery-partners/:id/approve', adminController.approveDeliveryPartner);
+router.patch('/delivery-partners/:id/reject', adminController.rejectDeliveryPartner);
 router.delete('/delivery-partners/:id', adminController.deleteDeliveryPartner);
 
 export default router;

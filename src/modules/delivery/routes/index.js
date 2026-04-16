@@ -13,6 +13,8 @@ import * as assignmentCtrl from '../controllers/assignmentController.js';
 const router = Router();
 
 // ─── Auth (public) ──────────────────────────────────────────────────────────
+router.post('/auth/register', authCtrl.register);
+router.post('/auth/login', authCtrl.login);
 router.post('/auth/send-otp', authCtrl.sendOtp);
 router.post('/auth/verify-otp', authCtrl.verifyOtp);
 
