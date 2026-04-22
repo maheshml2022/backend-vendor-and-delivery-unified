@@ -32,16 +32,16 @@ export const getAddressById = async (addressId, userId) => {
  */
 export const createAddress = async (userId, addressData) => {
   const {
-    addressLine1, addressLine2, city, postalCode,
+    label, addressLine1, addressLine2, city, state, postalCode,
     latitude, longitude, isPrimary
   } = addressData;
 
   const result = await query(
     `INSERT INTO addresses 
-    (user_id, address_line1, address_line2, city, postal_code, latitude, longitude, is_primary)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    (user_id, label, address_line1, address_line2, city, state, postal_code, latitude, longitude, is_primary)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     RETURNING *`,
-    [userId, addressLine1, addressLine2 || null, city, postalCode,
+    [userId, label || 'Other', addressLine1, addressLine2 || null, city, state || null, postalCode,
      latitude || null, longitude || null, isPrimary || false]
   );
   return result.rows[0];
@@ -66,7 +66,6 @@ export const updateAddress = async (addressId, userId, addressData) => {
 
   if (updates.length === 0) return null;
 
-  updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(addressId);
   values.push(userId);
 

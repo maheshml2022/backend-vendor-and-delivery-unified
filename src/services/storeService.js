@@ -73,6 +73,43 @@ export const searchStores = async (searchTerm, page = 1, limit = 20) => {
 };
 
 /**
+ * Get stores by city
+ */
+export const getStoresByCity = async (city, page = 1, limit = 20) => {
+  try {
+    const offset = (page - 1) * limit;
+    const stores = await storeRepo.getStoresByCity(city, limit, offset);
+    const total = await storeRepo.countStoresByCity(city);
+
+    return {
+      stores,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    logger.error('Get stores by city error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all cities
+ */
+export const getAllCities = async () => {
+  try {
+    const cities = await storeRepo.getAllCities();
+    return cities;
+  } catch (error) {
+    logger.error('Get all cities error:', error);
+    throw error;
+  }
+};
+
+/**
  * Get stores by location
  */
 export const getStoresByLocation = async (latitude, longitude, radiusKm = 5, limit = 20) => {
@@ -120,6 +157,8 @@ export default {
   getAllStores,
   getStoreDetails,
   searchStores,
+  getStoresByCity,
+  getAllCities,
   getStoresByLocation,
   createStore,
   updateStore

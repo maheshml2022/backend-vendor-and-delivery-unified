@@ -22,10 +22,11 @@ export const addToCart = asyncHandler(async (req, res) => {
     );
   }
 
+  const productId = value.menuItemId || value.catalogItemId;
   const cartItem = await cartService.addToCart(
     userId,
-    value.storeId,
-    value.menuItemId,
+    productId,
+    value.storeId || null,
     value.quantity,
     value.specialInstructions
   );

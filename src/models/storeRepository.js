@@ -37,12 +37,50 @@ export const searchStores = async (searchTerm, limit = 20, offset = 0) => {
   const searchPattern = `%${searchTerm}%`;
   const result = await query(
     `SELECT * FROM vendor_stores 
-     WHERE is_active = TRUE AND (name ILIKE $1 OR cuisine_type ILIKE $1)
+     WHERE is_active = TRUE AND (name ILIKE $1 OR description ILIKE $1 OR store_type ILIKE $1)
      ORDER BY rating DESC, name ASC 
      LIMIT $2 OFFSET $3`,
     [searchPattern, limit, offset]
   );
   return result.rows;
+};
+
+/**
+ * Get stores by city
+ */
+export const getStoresByCity = async (city, limit = 20, offset = 0) => {
+  const result = await query(
+    `SELECT * FROM vendor_stores 
+     WHERE is_active = TRUE AND approval_status = 'approved' AND LOWER(city) = LOWER($1)
+     ORDER BY rating DESC, name ASC 
+     LIMIT $2 OFFSET $3`,
+    [city, limit, offset]
+  );
+  return result.rows;
+};
+
+/**
+ * Count stores by city
+ */
+export const countStoresByCity = async (city) => {
+  const result = await query(
+    `SELECT COUNT(*) FROM vendor_stores 
+     WHERE is_active = TRUE AND approval_status = 'approved' AND LOWER(city) = LOWER($1)`,
+    [city]
+  );
+  return parseInt(result.rows[0].count);
+};
+
+/**
+ * Get all unique cities
+ */
+export const getAllCities = async () => {
+  const result = await query(
+    `SELECT DISTINCT city FROM vendor_stores 
+     WHERE is_active = TRUE AND approval_status = 'approved' AND city IS NOT NULL
+     ORDER BY city ASC`
+  );
+  return result.rows.map(row => row.city);
 };
 
 /**
@@ -130,6 +168,9 @@ export default {
   getAllStores,
   getStoreById,
   searchStores,
+  getStoresByCity,
+  countStoresByCity,
+  getAllCities,
   getStoresByLocation,
   createStore,
   updateStore,

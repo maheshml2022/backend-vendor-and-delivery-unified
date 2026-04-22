@@ -5,6 +5,31 @@
 
 import { query } from '../config/database.js';
 
+const DUMMY_IMAGES = {
+  food: 'https://placehold.co/1200x360/FF6A00/FFFFFF?text=DailyBox+Food',
+  grocery: 'https://placehold.co/1200x360/2ECC71/FFFFFF?text=DailyBox+Grocery',
+  vegetables: 'https://placehold.co/1200x360/4CAF50/FFFFFF?text=DailyBox+Vegetables',
+  pharmacy: 'https://placehold.co/1200x360/1976D2/FFFFFF?text=DailyBox+Pharmacy'
+};
+
+const getDummyImageUrl = (storeType) => {
+  const normalized = (storeType || 'grocery').toString().trim().toLowerCase();
+  if (normalized === 'veg') return DUMMY_IMAGES.vegetables;
+  return DUMMY_IMAGES[normalized] || DUMMY_IMAGES.grocery;
+};
+
+const withDefaultStoreBanner = (bannerUrl, storeType) => {
+  return bannerUrl && bannerUrl.toString().trim() !== ''
+    ? bannerUrl
+    : getDummyImageUrl(storeType);
+};
+
+const withDefaultStoreLogo = (logoUrl, storeType) => {
+  return logoUrl && logoUrl.toString().trim() !== ''
+    ? logoUrl
+    : getDummyImageUrl(storeType);
+};
+
 /**
  * Get stores by vendor ID
  */
@@ -34,15 +59,19 @@ export const getById = async (storeId, vendorId = null) => {
  * Create a store
  */
 export const create = async (vendorId, data) => {
+  const normalizedLogoUrl = withDefaultStoreLogo(data.logoUrl, data.storeType);
+  const normalizedBannerUrl = withDefaultStoreBanner(data.bannerUrl, data.storeType);
+  const ownerId = data.ownerId || vendorId;
+
   const result = await query(
     `INSERT INTO vendor_stores
        (vendor_id, owner_id, name, store_type, city, description, logo_url, banner_url,
         delivery_time, delivery_charge, latitude, longitude, is_active, approval_status)
-     VALUES ($1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending')
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending')
      RETURNING *`,
     [
-      vendorId, data.name, data.storeType || null, data.city || '',
-      data.description || null, data.logoUrl || null, data.bannerUrl || null,
+      vendorId, ownerId, data.name, data.storeType || null, data.city || '',
+      data.description || null, normalizedLogoUrl, normalizedBannerUrl,
       data.deliveryTime || null, data.deliveryCharge || null,
       data.latitude || null, data.longitude || null, true
     ]
@@ -54,6 +83,13 @@ export const create = async (vendorId, data) => {
  * Update a store (vendor-scoped)
  */
 export const update = async (storeId, vendorId, data) => {
+  const normalizedLogoUrl = data.logoUrl === undefined
+    ? undefined
+    : withDefaultStoreLogo(data.logoUrl, data.storeType);
+  const normalizedBannerUrl = data.bannerUrl === undefined
+    ? undefined
+    : withDefaultStoreBanner(data.bannerUrl, data.storeType);
+
   const result = await query(
     `UPDATE vendor_stores SET
        name            = COALESCE($1, name),
@@ -70,8 +106,8 @@ export const update = async (storeId, vendorId, data) => {
      WHERE id = $11 AND vendor_id = $12
      RETURNING *`,
     [
-      data.name, data.storeType, data.description, data.logoUrl,
-      data.bannerUrl, data.deliveryTime, data.deliveryCharge,
+      data.name, data.storeType, data.description, normalizedLogoUrl,
+      normalizedBannerUrl, data.deliveryTime, data.deliveryCharge,
       data.latitude, data.longitude, data.isActive,
       storeId, vendorId
     ]
@@ -125,8 +161,8 @@ export const getByCity = async (city, storeType, search, limit, offset) => {
   const countResult = await query(
     `SELECT COUNT(*)
      FROM vendor_stores vs
-     JOIN users u ON vs.vendor_id = u.id
-     LEFT JOIN vendor_details vd ON vd.user_id = u.id
+     JOIN vendor_details vd ON vs.vendor_id = vd.id
+     JOIN users u ON vd.user_id = u.id
      ${filters}`,
     params
   );
@@ -134,8 +170,8 @@ export const getByCity = async (city, storeType, search, limit, offset) => {
   const result = await query(
     `SELECT vs.*, u.full_name as owner_name, vd.business_name, vd.business_type
      FROM vendor_stores vs
-     JOIN users u ON vs.vendor_id = u.id
-     LEFT JOIN vendor_details vd ON vd.user_id = u.id
+     JOIN vendor_details vd ON vs.vendor_id = vd.id
+     JOIN users u ON vd.user_id = u.id
      ${filters}
      ORDER BY vs.rating DESC, vs.name ASC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -152,7 +188,8 @@ export const getActiveCities = async () => {
   const result = await query(`
     SELECT vs.city, COUNT(DISTINCT vs.id) AS store_count
     FROM vendor_stores vs
-    JOIN users u ON vs.vendor_id = u.id
+    JOIN vendor_details vd ON vs.vendor_id = vd.id
+    JOIN users u ON vd.user_id = u.id
     WHERE vs.city <> '' AND vs.is_active = true AND u.is_active = true
     GROUP BY vs.city
     HAVING COUNT(DISTINCT vs.id) > 0

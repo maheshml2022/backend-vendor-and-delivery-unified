@@ -36,7 +36,9 @@ import menuRoutes from './routes/menu.routes.js';
 import cartRoutes from './routes/cart.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import alertsRoutes from './routes/alerts.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
+import bannerRoutes from './routes/banner.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import logger from './utils/logger.js';
 
@@ -89,7 +91,9 @@ app.use(`${apiBase}/stores`, storeRoutes);
 app.use(`${apiBase}/menu`, menuRoutes);
 app.use(`${apiBase}/cart`, cartRoutes);
 app.use(`${apiBase}/orders`, orderRoutes);
+app.use(`${apiBase}/admin/banners`, bannerRoutes);
 app.use(`${apiBase}/admin`, adminRoutes);
+app.use(`${apiBase}/admin/alerts`, alertsRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // ==================== MODULE ROUTES ====================

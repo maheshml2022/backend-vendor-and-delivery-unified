@@ -61,7 +61,7 @@ export const getCatalogItems = async (filters, limit, offset) => {
 
   params.push(limit, offset);
   const result = await query(
-    `SELECT p.*, vs.name as store_name
+    `SELECT p.*, vs.name as store_name, vs.city
      FROM products p
      LEFT JOIN vendor_stores vs ON p.store_id = vs.id
      ${where}
@@ -106,7 +106,7 @@ export const countCatalogItems = async (filters) => {
  */
 export const getCatalogItemById = async (itemId) => {
   const result = await query(
-    `SELECT p.*, vs.name as store_name, vs.store_type
+    `SELECT p.*, vs.name as store_name, vs.store_type, vs.city
      FROM products p
      LEFT JOIN vendor_stores vs ON p.store_id = vs.id
      WHERE p.id = $1`,
@@ -133,7 +133,7 @@ export const getCategories = async (domain) => {
  */
 export const getCatalogHomeItems = async (domain, limit) => {
   const result = await query(
-    `SELECT p.*, vs.name as store_name
+    `SELECT p.*, vs.name as store_name, vs.city
      FROM products p
      LEFT JOIN vendor_stores vs ON p.store_id = vs.id
      WHERE p.domain = $1 AND p.is_available = true

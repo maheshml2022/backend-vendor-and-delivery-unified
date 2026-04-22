@@ -38,7 +38,11 @@ export const verifyOTP = asyncHandler(async (req, res) => {
     );
   }
 
-  const result = await authService.verifyOTP(value.mobileNumber, value.otpCode);
+  const result = await authService.verifyOTP(
+    value.mobileNumber,
+    value.otpCode,
+    value.firebaseIdToken
+  );
   res.json(successResponse(result, 'OTP verified successfully'));
 });
 

@@ -124,7 +124,7 @@ const seedDatabase = async () => {
     logger.info('Creating vendor stores...');
     const storesResult = await query(`
       INSERT INTO vendor_stores 
-        (name, store_type, vendor_id, description, logo_url, 
+        (name, store_type, vendor_id, description, logo_url,
          rating, delivery_time, delivery_charge, is_active, approval_status, owner_id)
       VALUES
         ($1, $2, $3, $4, $5, 4.5, 30, 40.00, true, 'approved', $6),

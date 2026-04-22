@@ -40,6 +40,7 @@ router.get('/orders/:id', adminController.getAdminOrderById);
 
 router.get('/reports/orders', adminController.getOrdersReport);
 router.get('/reports/revenue', adminController.getRevenueReport);
+router.get('/reports/city', adminController.getCityReport);
 
 // ==================== DELIVERY PARTNERS ====================
 

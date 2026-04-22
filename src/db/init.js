@@ -64,7 +64,6 @@ export const initializeDatabase = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    logger.info('✓ Addresses table ready');
 
     // Vendor Details Table
     await query(`
@@ -75,6 +74,7 @@ export const initializeDatabase = async () => {
         business_name VARCHAR(255),
         gst_number VARCHAR(50),
         business_type VARCHAR(50),
+        phone VARCHAR(15),
         profile_image_url TEXT,
         pan_number VARCHAR(50),
         bank_account_number VARCHAR(50),
@@ -254,9 +254,44 @@ export const initializeDatabase = async () => {
         price NUMERIC(10, 2)
       )
     `);
-    logger.info('✓ Order Items table ready');
+     logger.info('✓ Order Items table ready');
 
-    // Migrate restaurant_id → store_id if needed (for existing databases)
+     // Favorite Restaurants Table
+     await query(`
+       CREATE TABLE IF NOT EXISTS favorite_restaurants (
+         id SERIAL PRIMARY KEY,
+         user_id INT REFERENCES users(id) ON DELETE CASCADE,
+         store_id INT REFERENCES vendor_stores(id) ON DELETE CASCADE,
+         store_name VARCHAR(255),
+         image_url TEXT,
+         rating NUMERIC(3, 2),
+         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         UNIQUE(user_id, store_id)
+       )
+     `);
+     logger.info('✓ Favorite Restaurants table ready');
+
+     // Favorite Products/Menu Items Table
+     await query(`
+       CREATE TABLE IF NOT EXISTS favorite_items (
+         id SERIAL PRIMARY KEY,
+         user_id INT REFERENCES users(id) ON DELETE CASCADE,
+         product_id INT REFERENCES products(id) ON DELETE CASCADE,
+         menu_item_id INT REFERENCES menu_items(id) ON DELETE CASCADE,
+         item_name VARCHAR(255),
+         domain VARCHAR(100),
+         price DECIMAL(10, 2),
+         image_url TEXT,
+         store_id INT REFERENCES vendor_stores(id),
+         store_name VARCHAR(255),
+         category VARCHAR(100),
+         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         UNIQUE(user_id, product_id, menu_item_id)
+       )
+     `);
+     logger.info('✓ Favorite Items table ready');
+
+     // Migrate restaurant_id → store_id if needed (for existing databases)
     await query(`
       DO $$
       BEGIN

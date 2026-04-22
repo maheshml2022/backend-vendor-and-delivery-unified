@@ -134,6 +134,7 @@ export const getDashboardMetrics = async (req, res) => {
         },
         revenue: {
           total: `₹${totalRevenue.toLocaleString('en-IN')}`,
+          rawTotal: totalRevenue,
           current: currentMonthRevenue,
           previous: previousMonthRevenue,
         },
@@ -297,7 +298,7 @@ export const toggleUserStatus = async (req, res) => {
  */
 export const createAdminVendor = async (req, res) => {
   try {
-    const { name, storeType, ownerName, businessName, description, deliveryTime, deliveryCharge, logoUrl, bannerUrl, latitude, longitude } = req.body;
+    const { name, storeType, ownerName, phone, businessName, description, deliveryTime, deliveryCharge, logoUrl, bannerUrl, latitude, longitude } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'Store name is required' });
@@ -306,8 +307,14 @@ export const createAdminVendor = async (req, res) => {
     let vendorId = null;
     if (ownerName || businessName) {
       const vendorResult = await pool.query(
-        `INSERT INTO vendor_details (vendor_name, business_name) VALUES ($1, $2) RETURNING id`,
-        [ownerName || null, businessName || null]
+        `INSERT INTO vendor_details (vendor_name, business_name, phone) VALUES ($1, $2, $3) RETURNING id`,
+        [ownerName || null, businessName || null, phone || null]
+      );
+      vendorId = vendorResult.rows[0].id;
+    } else if (phone) {
+      const vendorResult = await pool.query(
+        `INSERT INTO vendor_details (phone) VALUES ($1) RETURNING id`,
+        [phone]
       );
       vendorId = vendorResult.rows[0].id;
     }
@@ -338,9 +345,10 @@ export const getAdminVendors = async (req, res) => {
     const { page = 1, limit = 10, status = '', search = '' } = req.query;
     const offset = (page - 1) * limit;
 
-    let query = `SELECT vs.id, vs.name, vs.store_type, vd.vendor_name as owner, vd.business_name, vs.approval_status as status, vs.created_at as created
+    let query = `SELECT vs.id, vs.name, vs.store_type, vs.city, vd.vendor_name as owner, vd.business_name, COALESCE(vd.phone, u.mobile_number) as phone, vs.approval_status as status, vs.created_at as created
                  FROM vendor_stores vs
-                 LEFT JOIN vendor_details vd ON vs.vendor_id = vd.id`;
+                 LEFT JOIN vendor_details vd ON vs.vendor_id = vd.id
+                 LEFT JOIN users u ON vd.user_id = u.id`;
     const params = [];
 
     // Filter by status
@@ -397,12 +405,14 @@ export const getAdminVendorById = async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(
-      `SELECT vs.id, vs.name, vs.store_type, vs.description, vs.rating, vs.delivery_time, vs.delivery_charge,
+      `SELECT vs.id, vs.name, vs.store_type, vs.city, vs.description, vs.rating, vs.delivery_time, vs.delivery_charge,
               vs.logo_url, vs.banner_url, vs.latitude, vs.longitude, vs.is_active, vs.approval_status,
               vd.vendor_name, vd.business_name, vd.business_type, vd.gst_number, vd.is_verified as vendor_verified,
+              COALESCE(vd.phone, u.mobile_number) as phone,
               vs.created_at, vs.updated_at
        FROM vendor_stores vs
        LEFT JOIN vendor_details vd ON vs.vendor_id = vd.id
+       LEFT JOIN users u ON vd.user_id = u.id
        WHERE vs.id = $1`,
       [id]
     );
@@ -784,6 +794,144 @@ export const getRevenueReport = async (req, res) => {
       success: false,
       message: 'Failed to fetch revenue report',
       error: error.message
+    });
+  }
+};
+
+// ==================== CITY REPORT ====================
+
+/**
+ * Get City Report
+ * Returns city-wise analytics with monthly aggregation
+ */
+export const getCityReport = async (req, res) => {
+  try {
+    const { month, city } = req.query;
+
+    // Default to current month
+    let monthStart, monthEnd;
+    if (month) {
+      // month format: YYYY-MM
+      monthStart = `${month}-01`;
+      const d = new Date(monthStart);
+      d.setMonth(d.getMonth() + 1);
+      monthEnd = d.toISOString().split('T')[0];
+    } else {
+      const now = new Date();
+      monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      monthEnd = next.toISOString().split('T')[0];
+    }
+
+    // Build city filter
+    let cityFilter = '';
+    const params = [monthStart, monthEnd];
+    if (city && city !== 'all') {
+      const cities = city.split(',').map(c => c.trim()).filter(Boolean);
+      if (cities.length > 0) {
+        const placeholders = cities.map((_, i) => `$${params.length + i + 1}`);
+        cityFilter = `AND COALESCE(a.city, vs.city, '') IN (${placeholders.join(',')})`;
+        params.push(...cities);
+      }
+    }
+
+    // City-wise aggregated metrics
+    const cityDataResult = await pool.query(`
+      SELECT
+        COALESCE(NULLIF(COALESCE(a.city, vs.city, ''), ''), 'Unknown') AS city,
+        COUNT(*) AS total_orders,
+        COALESCE(SUM(o.total_amount), 0) AS revenue,
+        COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) AS completed_orders,
+        COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) AS cancelled_orders,
+        COUNT(CASE WHEN o.status = 'pending' THEN 1 END) AS pending_orders,
+        COALESCE(AVG(o.total_amount), 0) AS avg_order_value
+      FROM orders o
+      LEFT JOIN addresses a ON o.address_id = a.id
+      LEFT JOIN vendor_stores vs ON o.store_id = vs.id
+      WHERE o.created_at >= $1 AND o.created_at < $2
+      ${cityFilter}
+      GROUP BY COALESCE(NULLIF(COALESCE(a.city, vs.city, ''), ''), 'Unknown')
+      ORDER BY revenue DESC
+    `, params);
+
+    // Overall summary
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(*) AS total_orders,
+        COALESCE(SUM(o.total_amount), 0) AS revenue,
+        COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) AS completed_orders,
+        COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) AS cancelled_orders,
+        COUNT(CASE WHEN o.status = 'pending' THEN 1 END) AS pending_orders,
+        COALESCE(AVG(o.total_amount), 0) AS avg_order_value
+      FROM orders o
+      LEFT JOIN addresses a ON o.address_id = a.id
+      LEFT JOIN vendor_stores vs ON o.store_id = vs.id
+      WHERE o.created_at >= $1 AND o.created_at < $2
+      ${cityFilter}
+    `, params);
+
+    // Distinct cities list for filter dropdown
+    const citiesResult = await pool.query(`
+      SELECT DISTINCT COALESCE(NULLIF(COALESCE(a.city, vs.city, ''), ''), 'Unknown') AS city
+      FROM orders o
+      LEFT JOIN addresses a ON o.address_id = a.id
+      LEFT JOIN vendor_stores vs ON o.store_id = vs.id
+      WHERE COALESCE(a.city, vs.city, '') != ''
+      ORDER BY city ASC
+    `);
+
+    // Monthly trend (last 6 months)
+    const trendResult = await pool.query(`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', o.created_at), 'YYYY-MM') AS month,
+        COUNT(*) AS total_orders,
+        COALESCE(SUM(o.total_amount), 0) AS revenue
+      FROM orders o
+      LEFT JOIN addresses a ON o.address_id = a.id
+      LEFT JOIN vendor_stores vs ON o.store_id = vs.id
+      WHERE o.created_at >= DATE_TRUNC('month', $1::date) - INTERVAL '5 months'
+        AND o.created_at < $2
+        ${cityFilter}
+      GROUP BY DATE_TRUNC('month', o.created_at)
+      ORDER BY month ASC
+    `, params);
+
+    const summary = summaryResult.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalOrders: parseInt(summary.total_orders),
+          revenue: Math.round(parseFloat(summary.revenue)),
+          completedOrders: parseInt(summary.completed_orders),
+          cancelledOrders: parseInt(summary.cancelled_orders),
+          pendingOrders: parseInt(summary.pending_orders),
+          avgOrderValue: parseFloat(parseFloat(summary.avg_order_value).toFixed(2)),
+        },
+        cityData: cityDataResult.rows.map(row => ({
+          city: row.city,
+          totalOrders: parseInt(row.total_orders),
+          revenue: Math.round(parseFloat(row.revenue)),
+          completedOrders: parseInt(row.completed_orders),
+          cancelledOrders: parseInt(row.cancelled_orders),
+          pendingOrders: parseInt(row.pending_orders),
+          avgOrderValue: parseFloat(parseFloat(row.avg_order_value).toFixed(2)),
+        })),
+        cities: citiesResult.rows.map(row => row.city),
+        monthlyTrend: trendResult.rows.map(row => ({
+          month: row.month,
+          totalOrders: parseInt(row.total_orders),
+          revenue: Math.round(parseFloat(row.revenue)),
+        })),
+      },
+    });
+  } catch (error) {
+    logger.error('Error fetching city report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch city report',
+      error: error.message,
     });
   }
 };

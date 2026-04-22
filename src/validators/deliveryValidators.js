@@ -19,7 +19,8 @@ export const validateDeliveryRegister = Joi.object({
     .messages({ 'string.min': 'Password must be at least 6 characters' }),
   email: Joi.string().email().optional().allow('', null),
   vehicleType: Joi.string().valid('bike', 'scooter', 'car', 'truck').required(),
-  vehicleNumber: Joi.string().min(3).max(20).required()
+  vehicleNumber: Joi.string().min(3).max(20).required(),
+  licenseImageUrl: Joi.string().uri().optional().allow('', null)
 });
 
 export const validateDeliverySendOtp = Joi.object({

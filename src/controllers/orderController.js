@@ -22,9 +22,11 @@ export const placeOrder = asyncHandler(async (req, res) => {
     );
   }
 
+  const resolvedStoreId = value.storeId ?? value.restaurantId;
+
   const order = await orderService.placeOrder(
     userId,
-    value.storeId,
+    resolvedStoreId,
     value.deliveryAddressId,
     value.paymentMethod,
     value.specialInstructions

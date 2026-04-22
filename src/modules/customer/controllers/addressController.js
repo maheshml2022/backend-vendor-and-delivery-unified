@@ -6,7 +6,7 @@
 import * as addressService from '../services/addressService.js';
 import { successResponse, errorResponse } from '../../../utils/response.js';
 import { validate } from '../../../validators/index.js';
-import { validateCustomerAddress } from '../../../validators/customerValidators.js';
+import { validateCustomerAddress, validateUpdateAddress } from '../../../validators/customerValidators.js';
 import { asyncHandler } from '../../../middleware/errorHandler.js';
 
 export const getAddresses = asyncHandler(async (req, res) => {
@@ -26,7 +26,12 @@ export const createAddress = asyncHandler(async (req, res) => {
 
 export const updateAddress = asyncHandler(async (req, res) => {
   const { addressId } = req.params;
-  const address = await addressService.updateAddress(addressId, req.user.userId, req.body);
+  const { error, value } = validate(validateUpdateAddress, req.body);
+  if (error) {
+    return res.status(400).json(errorResponse(null, 400, error.details[0].message));
+  }
+
+  const address = await addressService.updateAddress(addressId, req.user.userId, value);
   res.json(successResponse(address, 'Address updated'));
 });
 

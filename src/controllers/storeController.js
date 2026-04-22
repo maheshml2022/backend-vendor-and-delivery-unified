@@ -36,6 +36,40 @@ export const getStoreDetails = asyncHandler(async (req, res) => {
 });
 
 /**
+ * GET /api/v1/stores/cities
+ * Get all available cities
+ */
+export const getAllCities = asyncHandler(async (req, res) => {
+  const cities = await storeService.getAllCities();
+  res.json(successResponse(cities, 'Cities retrieved'));
+});
+
+/**
+ * GET /api/v1/stores/city/:city
+ * Get stores by city
+ */
+export const getStoresByCity = asyncHandler(async (req, res) => {
+  const { city } = req.params;
+  const { page = 1, limit = 20 } = req.query;
+
+  if (!city) {
+    return res.status(400).json(
+      errorResponse(null, 400, 'City name is required')
+    );
+  }
+
+  const result = await storeService.getStoresByCity(city, parseInt(page), parseInt(limit));
+
+  res.json(paginatedResponse(
+    result.stores,
+    result.pagination.total,
+    result.pagination.page,
+    result.pagination.limit,
+    `Stores in ${city} retrieved`
+  ));
+});
+
+/**
  * GET /api/v1/stores/search
  * Search stores
  */

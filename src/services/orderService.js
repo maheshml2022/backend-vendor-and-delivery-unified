@@ -19,9 +19,13 @@ const generateOrderNumber = () => {
 /**
  * Place order
  */
-export const placeOrder = async (userId, vendorId, storeId, addressId, paymentMethod) => {
+export const placeOrder = async (userId, storeId, addressId, paymentMethod, specialInstructions) => {
   try {
     return await transaction(async (client) => {
+      // Look up vendor from store
+      const storeResult = await client.query('SELECT vendor_id FROM vendor_stores WHERE id = $1', [storeId]);
+      const vendorId = storeResult.rows[0]?.vendor_id || storeId;
+
       // Get cart items for this vendor
       const cartResult = await client.query(
         `SELECT c.*, p.price, p.discount_percentage

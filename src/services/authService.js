@@ -1,6 +1,7 @@
 /**
  * Authentication Service
  * Handles OTP generation, verification, and JWT token generation
+ * Integrated with Firebase Phone Authentication
  */
 
 import bcryptjs from 'bcryptjs';
@@ -8,16 +9,18 @@ import * as userRepo from '../models/userRepository.js';
 import * as otpRepo from '../models/otpRepository.js';
 import { generateOTP, getOTPExpirationTime, isOTPExpired, isValidOTPFormat } from '../utils/otp.js';
 import { generateToken } from '../utils/jwt.js';
+import * as firebaseService from '../utils/firebase.js';
 import logger from '../utils/logger.js';
 import { MAX_OTP_ATTEMPTS } from '../utils/otp.js';
 
 /**
  * Send OTP to mobile number
+ * Firebase Phone Auth: OTP is sent by client-side Firebase SDK
+ * Server just prepares the session and returns firebase mode indicator
  */
 export const sendOTP = async (mobileNumber) => {
   try {
     // Check if user exists
-
     let user = await userRepo.findUserByMobile(mobileNumber);
 
     // If user doesn't exist, create them first to satisfy foreign key constraint in otps table
@@ -26,21 +29,37 @@ export const sendOTP = async (mobileNumber) => {
       user = await userRepo.createUser(mobileNumber, null, 'User', null, null);
     }
 
-    // Generate OTP
+    // Check if Firebase is ready
+    const useFirebase = process.env.FIREBASE_PHONE_AUTH_ENABLED === 'true' && firebaseService.isFirebaseReady();
+
+    // Always generate a real OTP and store in DB
     const otp = generateOTP();
     const expiresAt = getOTPExpirationTime();
-
-    // Save OTP in database
     await otpRepo.saveOTP(mobileNumber, otp, expiresAt);
 
-    // TODO: In production, send OTP via SMS using Twilio or similar service
-    logger.info('OTP generated', { mobileNumber, otp }); // Remove in production
+    if (useFirebase) {
+      logger.info('Firebase Phone Authentication enabled');
+      const formattedPhone = mobileNumber.startsWith('+') ? mobileNumber : `+91${mobileNumber}`;
+
+      return {
+        success: true,
+        message: 'OTP sent successfully',
+        expiresAt,
+        authMethod: 'firebase',
+        phoneNumber: formattedPhone,
+        // In dev mode, also return OTP for curl testing
+        debug_otp: process.env.NODE_ENV === 'development' ? otp : undefined
+      };
+    }
+
+    // Custom OTP only if Firebase not configured
+    logger.info('Using custom OTP generation (Firebase not configured)');
 
     return {
       success: true,
       message: 'OTP sent successfully',
       expiresAt,
-      // Remove in production:
+      authMethod: 'custom',
       debug_otp: process.env.NODE_ENV === 'development' ? otp : undefined
     };
   } catch (error) {
@@ -51,9 +70,81 @@ export const sendOTP = async (mobileNumber) => {
 
 /**
  * Verify OTP and create/update user
+ * Supports Firebase ID token and custom OTP verification
  */
-export const verifyOTP = async (mobileNumber, otpCode) => {
+export const verifyOTP = async (mobileNumber, otpCode, firebaseIdToken) => {
   try {
+    const tokenCandidate = firebaseIdToken || otpCode;
+    const isFirebaseToken = tokenCandidate && tokenCandidate.includes('.') && tokenCandidate.split('.').length === 3;
+
+    const useFirebase = process.env.FIREBASE_PHONE_AUTH_ENABLED === 'true' && firebaseService.isFirebaseReady();
+
+    if (isFirebaseToken) {
+      if (!useFirebase) {
+        throw new Error('Firebase phone auth is not configured on server');
+      }
+
+      try {
+        logger.info('Verifying Firebase ID token');
+        const firebaseUser = await firebaseService.verifyFirebaseToken(tokenCandidate);
+
+        // Verify phone number matches
+        if (firebaseUser.phoneNumber) {
+          const firebasePhone = firebaseUser.phoneNumber.replace(/\D/g, '');
+          const userPhone = mobileNumber.replace(/\D/g, '');
+          if (!firebasePhone.includes(userPhone) && !userPhone.includes(firebasePhone)) {
+            throw new Error('Phone number mismatch');
+          }
+        }
+
+        // Get or create user from Firebase info
+        let user = await userRepo.findUserByMobile(mobileNumber);
+
+        if (!user) {
+          logger.info('Creating user from Firebase token:', { mobileNumber });
+          user = await userRepo.createUser(
+            mobileNumber,
+            firebaseUser.email,
+            firebaseUser.displayName || 'User',
+            null
+          );
+        }
+
+        // Update user verification status
+        await userRepo.updateUserVerification(user.id);
+
+        // Update last login
+        await userRepo.updateUserLastLogin(user.id);
+
+        // Generate JWT token for our API
+        const token = generateToken({
+          userId: user.id,
+          mobileNumber: user.mobile_number,
+          firebaseUid: firebaseUser.uid
+        });
+
+        return {
+          success: true,
+          message: 'OTP verified successfully',
+          authMethod: 'firebase',
+          user: {
+            id: user.id,
+            mobileNumber: user.mobile_number,
+            fullName: user.full_name,
+            email: user.email,
+            isVerified: true
+          },
+          token
+        };
+      } catch (firebaseError) {
+        logger.warn('Firebase verification failed:', firebaseError.message);
+        throw new Error(firebaseError.message || 'Invalid or expired Firebase token');
+      }
+    }
+
+    // Fallback to custom OTP verification for numeric OTP only
+    logger.info('Verifying custom OTP');
+
     // Validate OTP format
     if (!isValidOTPFormat(otpCode)) {
       throw new Error('Invalid OTP format');
@@ -107,6 +198,7 @@ export const verifyOTP = async (mobileNumber, otpCode) => {
     return {
       success: true,
       message: 'OTP verified successfully',
+      authMethod: 'custom',
       user: {
         id: user.id,
         mobileNumber: user.mobile_number,

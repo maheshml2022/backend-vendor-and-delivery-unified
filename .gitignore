@@ -27,3 +27,12 @@ build/
 # OS
 Thumbs.db
 .DS_Store
+
+# Credentials and Secrets (NEVER commit these)
+firebase-service-account.json
+firebase-service-account.*.json
+google-cloud-credentials.json
+*.key
+*.pem
+secrets/
+credentials/

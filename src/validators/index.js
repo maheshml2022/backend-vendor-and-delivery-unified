@@ -21,12 +21,37 @@ export const validateSendOTP = Joi.object({
 export const validateVerifyOTP = Joi.object({
   mobileNumber: phoneSchema,
   otpCode: Joi.string()
-    .length(6)
-    .pattern(/^[0-9]{6}$/)
-    .required()
+    .optional()
     .messages({
-      'string.pattern.base': 'OTP must be 6 digits'
+      'string.base': 'otpCode must be a string'
+    }),
+  firebaseIdToken: Joi.string()
+    .optional()
+    .messages({
+      'string.base': 'firebaseIdToken must be a string'
     })
+}).custom((value, helpers) => {
+  const hasOtpCode = typeof value.otpCode === 'string' && value.otpCode.length > 0;
+  const hasFirebaseToken = typeof value.firebaseIdToken === 'string' && value.firebaseIdToken.length > 0;
+
+  if (!hasOtpCode && !hasFirebaseToken) {
+    return helpers.error('any.custom', {
+      message: 'Provide either otpCode or firebaseIdToken'
+    });
+  }
+
+  if (hasOtpCode) {
+    const isSixDigitOtp = /^[0-9]{6}$/.test(value.otpCode);
+    const isJwtLikeToken = value.otpCode.includes('.') && value.otpCode.split('.').length === 3;
+
+    if (!isSixDigitOtp && !isJwtLikeToken) {
+      return helpers.error('any.custom', {
+        message: 'otpCode must be a 6-digit OTP or Firebase ID token'
+      });
+    }
+  }
+
+  return value;
 });
 
 export const validateUserRegistration = Joi.object({
@@ -94,19 +119,32 @@ export const validateMenuItem = Joi.object({
 
 // Cart Schemas
 export const validateCartItem = Joi.object({
-  menuItemId: Joi.number().required(),
-  storeId: Joi.number().required(),
+  menuItemId: Joi.number().optional(),
+  storeId: Joi.number().optional(),
+  catalogItemId: Joi.number().optional(),
+  catalogType: Joi.string().valid('food', 'grocery', 'vegetables', 'pharmacy').optional(),
   quantity: Joi.number().min(1).required(),
   specialInstructions: Joi.string().optional()
+}).custom((value, helpers) => {
+  const hasFood = value.menuItemId && value.storeId;
+  const hasCatalog = value.catalogItemId && value.catalogType;
+  if (!hasFood && !hasCatalog) {
+    return helpers.error('any.custom', {
+      message: 'Provide either (menuItemId + storeId) or (catalogItemId + catalogType)'
+    });
+  }
+  return value;
 });
 
 // Order Schemas
 export const validateCreateOrder = Joi.object({
-  storeId: Joi.number().required(),
+  storeId: Joi.number().optional(),
+  restaurantId: Joi.number().optional(),
+  catalogType: Joi.string().valid('food', 'grocery', 'vegetables', 'pharmacy').optional(),
   deliveryAddressId: Joi.number().required(),
   paymentMethod: Joi.string().valid('CASH', 'CARD', 'UPI').required(),
   specialInstructions: Joi.string().optional()
-});
+}).or('storeId', 'restaurantId');
 
 // Address Schemas
 export const validateAddress = Joi.object({

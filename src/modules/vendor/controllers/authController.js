@@ -4,7 +4,6 @@
  */
 
 import * as authService from '../services/authService.js';
-import { sendOTP as coreSendOTP } from '../../../services/authService.js';
 import { successResponse, errorResponse } from '../../../utils/response.js';
 import { validate } from '../../../validators/index.js';
 import {
@@ -18,8 +17,8 @@ export const sendOtp = asyncHandler(async (req, res) => {
   if (!mobileNumber) {
     return res.status(400).json(errorResponse(null, 400, 'mobileNumber is required'));
   }
-  // Reuse admin's OTP sending logic
-  const result = await coreSendOTP(mobileNumber);
+  // Use vendor-specific sendOTP (requires existing vendor account)
+  const result = await authService.sendOTP(mobileNumber);
   res.json(successResponse(result, 'OTP sent successfully'));
 });
 

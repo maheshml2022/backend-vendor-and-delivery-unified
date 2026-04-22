@@ -58,8 +58,7 @@ export const incrementOTPAttempt = async (mobileNumber) => {
   const result = await query(
     `UPDATE otps 
      SET attempt_count = attempt_count + 1 
-     WHERE mobile_number = $1 
-     ORDER BY created_at DESC LIMIT 1
+     WHERE id = (SELECT id FROM otps WHERE mobile_number = $1 ORDER BY created_at DESC LIMIT 1)
      RETURNING attempt_count`,
     [mobileNumber]
   );

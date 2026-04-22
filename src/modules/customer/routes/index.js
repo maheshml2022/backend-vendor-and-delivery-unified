@@ -11,6 +11,8 @@ import { requireRole } from '../../../middleware/rbac.js';
 import * as addressCtrl from '../controllers/addressController.js';
 import * as catalogCtrl from '../controllers/catalogController.js';
 import * as menuReviewCtrl from '../controllers/menuReviewController.js';
+import * as storeReviewCtrl from '../controllers/storeReviewController.js';
+import * as favoritesCtrl from '../controllers/favoritesController.js';
 
 const router = Router();
 
@@ -28,6 +30,14 @@ router.get('/menu/:menuItemId/reviews', optionalAuthenticate, menuReviewCtrl.lis
 router.post('/menu/:menuItemId/reviews', authenticate, menuReviewCtrl.createOrUpdateMenuItemReview);
 router.delete('/menu/:menuItemId/reviews/:reviewId', authenticate, menuReviewCtrl.removeMenuItemReview);
 router.get('/menu/:menuItemId/details', optionalAuthenticate, menuReviewCtrl.getMenuItemDetails);
+
+// ── Store Reviews ──────────────────────────────────────────────────────────────
+
+router.get('/stores/:storeId/reviews', optionalAuthenticate, storeReviewCtrl.listStoreReviews);
+router.post('/stores/:storeId/reviews', authenticate, storeReviewCtrl.createOrUpdateStoreReview);
+router.delete('/stores/:storeId/reviews/:reviewId', authenticate, storeReviewCtrl.removeStoreReview);
+router.get('/stores/:storeId/details', optionalAuthenticate, storeReviewCtrl.getStoreDetails);
+
 
 // ── Catalog: Home & Generic ────────────────────────────────────────────────────
 
@@ -58,11 +68,29 @@ router.get('/catalog/pharmacy/search', optionalAuthenticate, catalogCtrl.pharmac
 router.get('/catalog/pharmacy/categories', optionalAuthenticate, catalogCtrl.pharmacy.getCategories);
 router.get('/catalog/pharmacy/stores/:storeId', optionalAuthenticate, catalogCtrl.pharmacy.getStoreDetails);
 
-// ── Catalog: Generic domain endpoints ──────────────────────────────────────────
+// ── Catalog: Generic domain endpoints ──────────────────────────────────────
 
 router.get('/catalog/:domain/categories', optionalAuthenticate, catalogCtrl.getCatalogCategories);
 router.get('/catalog/:domain/search', optionalAuthenticate, catalogCtrl.searchCatalogItems);
 router.get('/catalog/:domain/items', optionalAuthenticate, catalogCtrl.getCatalogItems);
 router.get('/catalog/:domain', optionalAuthenticate, catalogCtrl.getCatalogSection);
+
+// ── Favorites Management (auth required) ────────────────────────────────────
+
+// Favorite Restaurants
+router.post('/favorites/restaurants', authenticate, favoritesCtrl.addFavoriteRestaurant);
+router.delete('/favorites/restaurants/:storeId', authenticate, favoritesCtrl.removeFavoriteRestaurant);
+router.get('/favorites/restaurants/:storeId/is-favorite', authenticate, favoritesCtrl.isFavoriteRestaurant);
+router.get('/favorites/restaurants', authenticate, favoritesCtrl.getFavoriteRestaurants);
+
+// Favorite Items/Products
+router.post('/favorites/items', authenticate, favoritesCtrl.addFavoriteItem);
+router.delete('/favorites/items/:itemId', authenticate, favoritesCtrl.removeFavoriteItem);
+router.get('/favorites/items/:itemId/is-favorite', authenticate, favoritesCtrl.isFavoriteItem);
+router.get('/favorites/items', authenticate, favoritesCtrl.getFavoriteItems);
+router.get('/favorites/items/domain/:domain', authenticate, favoritesCtrl.getFavoriteItemsByDomain);
+
+// Favorites Summary
+router.get('/favorites/summary', authenticate, favoritesCtrl.getFavoritesSummary);
 
 export default router;

@@ -5,6 +5,25 @@
 
 import { query } from '../config/database.js';
 
+const DUMMY_IMAGES = {
+  food: 'https://placehold.co/1200x360/FF6A00/FFFFFF?text=DailyBox+Food',
+  grocery: 'https://placehold.co/1200x360/2ECC71/FFFFFF?text=DailyBox+Grocery',
+  vegetables: 'https://placehold.co/1200x360/4CAF50/FFFFFF?text=DailyBox+Vegetables',
+  pharmacy: 'https://placehold.co/1200x360/1976D2/FFFFFF?text=DailyBox+Pharmacy'
+};
+
+const getDummyImageUrl = (domain) => {
+  const normalized = (domain || 'grocery').toString().trim().toLowerCase();
+  if (normalized === 'veg') return DUMMY_IMAGES.vegetables;
+  return DUMMY_IMAGES[normalized] || DUMMY_IMAGES.grocery;
+};
+
+const withDefaultCatalogImage = (imageUrl, domain) => {
+  return imageUrl && imageUrl.toString().trim() !== ''
+    ? imageUrl
+    : getDummyImageUrl(domain);
+};
+
 /**
  * Get products for a vendor with optional store filter
  */
@@ -50,6 +69,9 @@ export const getProductById = async (productId) => {
  * Create a product
  */
 export const createProduct = async (vendorId, data) => {
+  const normalizedImageUrl = withDefaultCatalogImage(data.imageUrl, data.domain || data.category);
+  const normalizedThumbnailUrl = withDefaultCatalogImage(data.thumbnailUrl || data.imageUrl, data.domain || data.category);
+
   const result = await query(
     `INSERT INTO products
        (store_id, vendor_id, name, description, category, price, original_price,
@@ -60,7 +82,7 @@ export const createProduct = async (vendorId, data) => {
     [
       data.storeId || null, vendorId, data.name, data.description || null,
       data.category, data.price, data.originalPrice || data.price,
-      data.imageUrl || null, data.thumbnailUrl || null,
+      normalizedImageUrl, normalizedThumbnailUrl,
       data.isVegetarian || false, data.discountPercentage || 0,
       data.requiresPrescription || false, data.stockQuantity || 0
     ]
@@ -72,6 +94,13 @@ export const createProduct = async (vendorId, data) => {
  * Update a product (vendor-scoped)
  */
 export const updateProduct = async (productId, vendorId, data) => {
+  const normalizedImageUrl = data.imageUrl === undefined
+    ? undefined
+    : withDefaultCatalogImage(data.imageUrl, data.domain || data.category);
+  const normalizedThumbnailUrl = data.thumbnailUrl === undefined
+    ? undefined
+    : withDefaultCatalogImage(data.thumbnailUrl || data.imageUrl, data.domain || data.category);
+
   const result = await query(
     `UPDATE products SET
        name                  = COALESCE($1, name),
@@ -91,7 +120,7 @@ export const updateProduct = async (productId, vendorId, data) => {
      RETURNING *`,
     [
       data.name, data.description, data.category, data.price,
-      data.originalPrice, data.imageUrl, data.thumbnailUrl,
+      data.originalPrice, normalizedImageUrl, normalizedThumbnailUrl,
       data.isVegetarian, data.discountPercentage, data.requiresPrescription,
       data.isAvailable, data.stockQuantity,
       productId, vendorId

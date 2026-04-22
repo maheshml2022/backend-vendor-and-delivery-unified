@@ -18,6 +18,22 @@ const router = express.Router();
 router.get('/', optionalAuthenticate, storeController.getAllStores);
 
 /**
+ * GET /api/v1/stores/cities
+ * Get all available cities
+ * Auth required: No
+ */
+router.get('/cities', optionalAuthenticate, storeController.getAllCities);
+
+/**
+ * GET /api/v1/stores/city/:city
+ * Get stores by city
+ * Auth required: No
+ * Params: { city: string }
+ * Query: { page?: number, limit?: number }
+ */
+router.get('/city/:city', optionalAuthenticate, storeController.getStoresByCity);
+
+/**
  * GET /api/v1/stores/search
  * Search stores by name or cuisine
  * Auth required: No

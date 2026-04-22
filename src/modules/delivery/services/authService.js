@@ -16,7 +16,7 @@ const SALT_ROUNDS = 10;
 /**
  * Register a new delivery partner (self-registration)
  */
-export const register = async ({ name, mobileNumber, password, email, vehicleType, vehicleNumber }) => {
+export const register = async ({ name, mobileNumber, password, email, vehicleType, vehicleNumber, licenseImageUrl }) => {
   // Check if mobile number already exists in delivery_partners
   const existing = await query(
     `SELECT id FROM delivery_partners WHERE mobile_number = $1`,
@@ -43,10 +43,10 @@ export const register = async ({ name, mobileNumber, password, email, vehicleTyp
   // Create delivery partner record
   const dpResult = await query(
     `INSERT INTO delivery_partners
-     (name, user_id, mobile_number, email, vehicle_type, vehicle_number, password_hash, approval_status, status, is_available, rating, total_deliveries)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'active', false, 5.0, 0)
+     (name, user_id, mobile_number, email, vehicle_type, vehicle_number, password_hash, license_image_url, approval_status, status, is_available, rating, total_deliveries)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', 'active', false, 5.0, 0)
      RETURNING id, name, mobile_number, email, vehicle_type, vehicle_number, approval_status, created_at`,
-    [name, user.id, mobileNumber, email || null, vehicleType, vehicleNumber, passwordHash]
+    [name, user.id, mobileNumber, email || null, vehicleType, vehicleNumber, passwordHash, licenseImageUrl || null]
   );
 
   logger.info(`Delivery partner registered: ${mobileNumber} (pending approval)`);
@@ -160,4 +160,49 @@ export const verifyOtp = async (mobileNumber, otpCode) => {
 
   const token = generateToken({ userId: user.id, role: user.role, mobileNumber: user.mobile_number });
   return { user, token };
+};
+
+/**
+ * Forgot password — send OTP
+ */
+export const forgotPassword = async (mobileNumber) => {
+  const existing = await query(
+    `SELECT id FROM delivery_partners WHERE mobile_number = $1`,
+    [mobileNumber]
+  );
+  if (existing.rows.length === 0) {
+    throw Object.assign(new Error('No delivery partner account found for this number'), { statusCode: 404 });
+  }
+
+  const otp = generateOTP();
+  const expiresAt = getOTPExpirationTime();
+  await otpRepo.saveOTP(mobileNumber, otp, expiresAt);
+
+  logger.info(`Delivery forgot-password OTP sent to ${mobileNumber}: ${otp}`);
+  return { message: 'OTP sent for password reset', expiresIn: '10 minutes' };
+};
+
+/**
+ * Reset password using OTP
+ */
+export const resetPassword = async (mobileNumber, otpCode, newPassword) => {
+  const verified = await otpRepo.verifyOTP(mobileNumber, otpCode);
+  if (!verified) {
+    throw Object.assign(new Error('Invalid or expired OTP'), { statusCode: 400 });
+  }
+
+  const passwordHash = await bcryptjs.hash(newPassword, SALT_ROUNDS);
+
+  // Update password in delivery_partners table
+  const result = await query(
+    `UPDATE delivery_partners SET password_hash = $1 WHERE mobile_number = $2 RETURNING id`,
+    [passwordHash, mobileNumber]
+  );
+
+  if (result.rows.length === 0) {
+    throw Object.assign(new Error('Delivery partner not found'), { statusCode: 404 });
+  }
+
+  logger.info(`Delivery partner password reset: ${mobileNumber}`);
+  return { message: 'Password reset successful. Please login with your new password.' };
 };

@@ -6,14 +6,44 @@
 import * as catalogRepo from '../../../models/catalogRepository.js';
 import logger from '../../../utils/logger.js';
 
+const DUMMY_IMAGES = {
+  food: 'https://placehold.co/1200x360/FF6A00/FFFFFF?text=DailyBox+Food',
+  grocery: 'https://placehold.co/1200x360/2ECC71/FFFFFF?text=DailyBox+Grocery',
+  vegetables: 'https://placehold.co/1200x360/4CAF50/FFFFFF?text=DailyBox+Vegetables',
+  pharmacy: 'https://placehold.co/1200x360/1976D2/FFFFFF?text=DailyBox+Pharmacy'
+};
+
+const getDummyImageUrl = (domain) => {
+  const normalized = (domain || 'grocery').toString().trim().toLowerCase();
+  if (normalized === 'veg') return DUMMY_IMAGES.vegetables;
+  return DUMMY_IMAGES[normalized] || DUMMY_IMAGES.grocery;
+};
+
+const pickBannerImageUrl = ({ domain, stores = [], items = [] }) => {
+  const storeBanner = stores.find(store => store?.banner_url)?.banner_url;
+  if (storeBanner) return storeBanner;
+
+  const storeLogo = stores.find(store => store?.logo_url)?.logo_url;
+  if (storeLogo) return storeLogo;
+
+  const itemImage = items.find(item => item?.image_url)?.image_url;
+  if (itemImage) return itemImage;
+
+  return getDummyImageUrl(domain);
+};
+
 export const getCatalogHome = async () => {
-  const domains = ['grocery', 'vegetables', 'pharmacy'];
+  const domains = ['food', 'grocery', 'vegetables', 'pharmacy'];
   const homeData = {};
 
   for (const domain of domains) {
     const items = await catalogRepo.getCatalogHomeItems(domain, 10);
     const stores = await catalogRepo.getStores(domain, 6, 0);
-    homeData[domain] = { items, stores };
+    homeData[domain] = {
+      items,
+      stores,
+      banner_image_url: pickBannerImageUrl({ domain, stores, items })
+    };
   }
 
   return homeData;
